@@ -24,10 +24,8 @@
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/slab.h> //kmalloc()
 #include <linux/time.h>
 #include <linux/uaccess.h>
-#include <linux/uaccess.h> //copy_to/from_user()
 #include <linux/version.h>
 
 MODULE_LICENSE("GPL");
@@ -39,43 +37,29 @@ MODULE_VERSION("1.0");
 
 int32_t value = 0;
 
-dev_t dev = 33333;
+dev_t dev = 666;
 static struct class *dev_class;
 static struct cdev etx_cdev;
-/*
-** Function Prototypes
-*/
+
 static int __init blk_init(void);
 static void __exit blk_exit(void);
 static int etx_open(struct inode *inode, struct file *file);
 static int etx_release(struct inode *inode, struct file *file);
-static ssize_t etx_read(struct file *filp, char __user *buf, size_t len,
-                        loff_t *off);
-static ssize_t etx_write(struct file *filp, const char *buf, size_t len,
-                         loff_t *off);
 static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
-/*
-** File operation structure
-*/
+
 static struct file_operations fops = {
     .owner = THIS_MODULE,
-    .read = etx_read,
-    .write = etx_write,
     .open = etx_open,
     .unlocked_ioctl = etx_ioctl,
     .release = etx_release,
 };
 
-// #define PROCFS_MAX_SIZE 200
-#define ioctl_name "lab2_blktrace"
+#define module_name "lab2_iostat"
 
 static atomic_t already_open = ATOMIC_INIT(0);
 
 static DECLARE_WAIT_QUEUE_HEAD(waitq);
 
-/*
-** This function will be called when we open the Device file
-*/
 static int etx_open(struct inode *inode, struct file *file) {
   if ((file->f_flags & O_NONBLOCK) && atomic_read(&already_open))
     return -EAGAIN;
@@ -90,11 +74,9 @@ static int etx_open(struct inode *inode, struct file *file) {
       return -EINTR;
     }
   }
-  return 0; /* Разрешение доступа. */
+  return 0;
 }
-/*
-** This function will be called when we close the Device file
-*/
+
 static int etx_release(struct inode *inode, struct file *file) {
   atomic_set(&already_open, 0);
   wake_up(&waitq);
@@ -102,114 +84,90 @@ static int etx_release(struct inode *inode, struct file *file) {
   pr_info("Device File Closed...!!!\n");
   return 0;
 }
-/*
-** This function will be called when we read the Device file
-*/
-static ssize_t etx_read(struct file *filp, char __user *buf, size_t len,
-                        loff_t *off) {
-  return 0;
-}
-/*
-** This function will be called when we write the Device file
-*/
-static ssize_t etx_write(struct file *filp, const char __user *buf, size_t len,
-                         loff_t *off) {
-  pr_info("Getting the writing speed\n");
-  return len;
-}
 
-/*
-** This function will be called when we write IOCTL on the Device file
-*/
 static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+  const __u64 dev_name_size = 20;
+  char device_path[dev_name_size];
+  char buff[dev_name_size];
+  int res = copy_from_user(&device_path, arg, sizeof(20));
+  strcpy(device_path, buff);
+
   switch (cmd) {
-  case WR_VALUE:
-    pr_info("Writing Mock\n");
-    break;
   case RD_VALUE:
-    pr_info("Reading is started\n");
-    struct block_device *nvme;
-    nvme = blkdev_get_by_path("/dev/nvme0n1p6", FMODE_READ, NULL);
+    pr_info("Statistics collecting started\n");
+    struct block_device *nvme =
+        blkdev_get_by_path(device_path, FMODE_READ, NULL);
     if (IS_ERR(nvme)) {
-      pr_info("Reading is finished on blk getting\n");
+      pr_info("Statistics collecting finished on the blkdev getting\n");
       return 0;
     }
-    // struct request_queue *q = NULL;
-    // q = bdev_get_queue(nvme);
-    // if (q == NULL) {
-    //   pr_info("Reading is finished on request_queue\n");
-    //   return 0;
-    // }
-    // struct request *rq = 0xFFF;
-    // blk_mq_quiesce_queue(q);
+
+    struct request_queue *q = NULL;
+    q = bdev_get_queue(nvme);
+    if (q == NULL) {
+      pr_info("Statistics collecting finished on the request_queue getting\n");
+      return 0;
+    }
+
+    const __u64 sector_sz = queue_physical_block_size(q);
+
     part_stat_lock();
-    __u64 start_iops = part_stat_read(nvme, ios[STAT_READ]);
-    __u64 start_sectors = part_stat_read(nvme, sectors[STAT_READ]);
+    __u64 start_rd_iops = part_stat_read(nvme, ios[STAT_READ]);
+    __u64 start_rd_sectors = part_stat_read(nvme, sectors[STAT_READ]);
+    __u64 start_wr_iops = part_stat_read(nvme, ios[STAT_WRITE]);
+    __u64 start_wr_sectors = part_stat_read(nvme, sectors[STAT_WRITE]);
     part_stat_unlock();
 
-    // rq = q->last_merge;
-    // pr_info("Hop...\n");
-    // if (rq == NULL) {
-    //   pr_info("Last merge is nullptr, shutdown...\n");
-    //   blk_mq_unquiesce_queue(q);
-    //   return 0;
-    // }
-    // do {
-    //   if (rq_data_dir(rq) == READ) {
-    //     r_bites += blk_rq_bytes(rq);
-    //   }
-    //   rq = rq->rq_next;
-    // } while (rq != NULL);
-    // blk_mq_unquiesce_queue(q);
-    // pr_info("Getting the reading speed. Result: r_bites=%llu", r_bites);
-    // r_bites = blk_queue_depth(q);
     ssleep(1);
+
     part_stat_lock();
-    __u64 finish_iops = part_stat_read(nvme, ios[STAT_READ]);
-    __u64 finish_sectors = part_stat_read(nvme, sectors[STAT_READ]);
+    __u64 finish_rd_iops = part_stat_read(nvme, ios[STAT_READ]);
+    __u64 finish_rd_sectors = part_stat_read(nvme, sectors[STAT_READ]);
+    __u64 finish_wr_iops = part_stat_read(nvme, ios[STAT_WRITE]);
+    __u64 finish_wr_sectors = part_stat_read(nvme, sectors[STAT_WRITE]);
     part_stat_unlock();
-    finish_iops = finish_iops - start_iops;
-    finish_sectors = finish_sectors - start_sectors;
-    __u64 result[2] = {finish_iops, finish_sectors * 4};
-    int res = copy_to_user(arg, &result, sizeof(result));
-    pr_info("Reading is finished. Code: %i\n", res);
+
+    finish_rd_iops = finish_rd_iops - start_rd_iops;
+    finish_rd_sectors = finish_rd_sectors - start_rd_sectors;
+    finish_wr_iops = finish_wr_iops - start_wr_iops;
+    finish_wr_sectors = finish_wr_sectors - start_wr_sectors;
+
+    __u64 result[4] = {finish_rd_iops, finish_rd_sectors * sector_sz,
+                       finish_wr_iops, finish_wr_sectors * sector_sz};
+    res = copy_to_user(arg, &result, sizeof(result));
+    pr_info("Statistics collecting completed. Code: %i\n", res);
     break;
   default:
-    pr_info("Default\n");
+    pr_warn("Unexpected code\n");
     break;
   }
   return 0;
 }
 
 static int __init blk_init(void) {
-  /*Allocating Major number*/
   if ((alloc_chrdev_region(&dev, 0, 1, "etx_Dev")) < 0) {
     pr_err("Cannot allocate major number\n");
     return -1;
   }
   pr_info("Major = %d Minor = %d \n", MAJOR(dev), MINOR(dev));
 
-  /*Creating cdev structure*/
   cdev_init(&etx_cdev, &fops);
 
-  /*Adding character device to the system*/
   if ((cdev_add(&etx_cdev, dev, 1)) < 0) {
     pr_err("Cannot add the device to the system\n");
     goto r_class;
   }
 
-  /*Creating struct class*/
   if (IS_ERR(dev_class = class_create(THIS_MODULE, "etx_class"))) {
     pr_err("Cannot create the struct class\n");
     goto r_class;
   }
 
-  /*Creating device*/
   if (IS_ERR(device_create(dev_class, NULL, dev, NULL, "etx_device"))) {
     pr_err("Cannot create the Device 1\n");
     goto r_device;
   }
-  pr_info("Device Driver %s Insert...Done!!!\n", ioctl_name);
+  pr_info("Device Driver %s Insert...Done!!!\n", module_name);
   return 0;
 
 r_device:
@@ -224,7 +182,7 @@ static void __exit blk_exit(void) {
   class_destroy(dev_class);
   cdev_del(&etx_cdev);
   unregister_chrdev_region(dev, 1);
-  pr_info("Device Driver %s Remove...Done!!!\n", ioctl_name);
+  pr_info("Device Driver %s Remove...Done!!!\n", module_name);
 }
 
 module_init(blk_init);

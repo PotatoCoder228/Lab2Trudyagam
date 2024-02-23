@@ -12,14 +12,17 @@
 #define RD_VALUE _IOR('r', 0xFFF, int32_t *)
 
 int main(int argc, char **argv) {
-  // fd = open("/dev/etx_device", O_RDWR);
   int fd = open("/dev/etx_device", O_RDWR);
-  uint64_t speed[2] = {0};
+  uint8_t data[sizeof(uint64_t)*4] = {0};
+  strcpy((char*)data, "/dev/nvme0n1p6"); 
   if (fd != 0) {
     for (int i = 0; i < 10; i++) {
-      ioctl(fd, RD_VALUE, &speed);
+      ioctl(fd, RD_VALUE, &data);
+      uint64_t* speed = (uint64_t*)data;
       printf("Reading iops: %lu\n", speed[0]);
       printf("Reading speed: %lu\n", speed[1]);
+      printf("Writing iops: %lu\n", speed[2]);
+      printf("Writing speed: %lu\n", speed[3]);
       printf("<------------------------------------------->\n");
     }
     close(fd);
