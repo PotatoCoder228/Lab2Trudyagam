@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define WR_VALUE _IOW('w', 0xEEE, int32_t *)
 #define RD_VALUE _IOR('r', 0xFFF, int32_t *)
@@ -14,7 +15,7 @@
 int main(int argc, char **argv) {
   int fd = open("/dev/etx_device", O_RDWR);
   uint64_t speed[4] = {};
-  if (fd != 0) {
+  if (fd != -1) {
     for (int i = 0; i < 10; i++) {
       ioctl(fd, RD_VALUE, &speed);
       printf("Reading iops: %lu\n", speed[0]);
@@ -25,6 +26,6 @@ int main(int argc, char **argv) {
     }
     close(fd);
   } else
-    printf("%s\n", "Can't open the file");
+    printf("%s. %s\n", "Can't open the file", strerror(errno));
   return 0;
 }

@@ -86,7 +86,6 @@ static int etx_release(struct inode *inode, struct file *file) {
 }
 
 static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
-  const __u64 dev_name_size = 20;
 
   switch (cmd) {
   case RD_VALUE:
