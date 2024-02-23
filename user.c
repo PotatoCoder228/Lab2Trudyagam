@@ -19,9 +19,9 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 10; i++) {
       ioctl(fd, RD_VALUE, &speed);
       printf("Reading iops: %lu\n", speed[0]);
-      printf("Reading speed: %lu\n", speed[1]);
+      printf("Reading speed [KBs]: %lu\n", speed[1]);
       printf("Writing iops: %lu\n", speed[2]);
-      printf("Writing speed: %lu\n", speed[3]);
+      printf("Writing speed [KBs]: %lu\n", speed[3]);
       printf("<------------------------------------------->\n");
     }
     close(fd);
