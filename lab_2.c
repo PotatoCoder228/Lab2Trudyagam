@@ -87,16 +87,12 @@ static int etx_release(struct inode *inode, struct file *file) {
 
 static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
   const __u64 dev_name_size = 20;
-  char device_path[dev_name_size];
-  char buff[dev_name_size];
-  int res = copy_from_user(&device_path, arg, sizeof(20));
-  strcpy(device_path, buff);
 
   switch (cmd) {
   case RD_VALUE:
     pr_info("Statistics collecting started\n");
     struct block_device *nvme =
-        blkdev_get_by_path(device_path, FMODE_READ, NULL);
+        blkdev_get_by_path("/dev/nvme0n1p6", FMODE_READ, NULL);
     if (IS_ERR(nvme)) {
       pr_info("Statistics collecting finished on the blkdev getting\n");
       return 0;
@@ -134,7 +130,7 @@ static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
 
     __u64 result[4] = {finish_rd_iops, finish_rd_sectors * sector_sz,
                        finish_wr_iops, finish_wr_sectors * sector_sz};
-    res = copy_to_user(arg, &result, sizeof(result));
+    int res = copy_to_user(arg, &result, sizeof(result));
     pr_info("Statistics collecting completed. Code: %i\n", res);
     break;
   default:
